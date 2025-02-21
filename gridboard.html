@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pokemon Card Style Image Board</title>
+    <style>
+        .board {
+            display: grid;
+            grid-template-columns: repeat(3, 150px);
+            grid-template-rows: repeat(3, 210px);
+            gap: 10px;
+            justify-content: center;
+            margin-top: 50px;
+        }
+        .cell {
+            width: 150px;
+            height: 210px;
+            border: 2px solid #000;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f8f8f8;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+        }
+        .cell img {
+            max-width: 100%;
+            max-height: 100%;
+            cursor: grab;
+        }
+        .cell::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0) 50%);
+            pointer-events: none;
+        }
+        .buttons {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .buttons button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+        }
+        .buttons .rare {
+            background-color: red;
+        }
+        .buttons .gold {
+            background-color: gold;
+        }
+        .buttons .epic {
+            background-color: green;
+        }
+        .buttons .super {
+            background-color: purple;
+        }
+    </style>
+</head>
+<body>
+    <div class="board" id="mainBoard">
+        <div class="cell" ondrop="drop(event)" ondragover="allowDrop(event)" onclick="selectImage(this)" data-pos="0,0"></div>
+        <div class="cell" ondrop="drop(event)" ondragover="allowDrop(event)" onclick="selectImage(this)" data-pos="0,1"></div>
+        <div class="cell" ondrop="drop(event)" ondragover="allowDrop(event)" onclick="selectImage(this)" data-pos="0,2"></div>
+        <div class="cell" ondrop="drop(event)" ondragover="allowDrop(event)" onclick="selectImage(this)" data-pos="1,0"></div>
+        <div class="cell" ondrop="drop(event)" ondragover="allowDrop(event)" onclick="selectImage(this)" data-pos="1,1"></div>
+        <div class="cell" ondrop="drop(event)" ondragover="allowDrop(event)" onclick="selectImage(this)" data-pos="1,2"></div>
+        <div class="cell" ondrop="drop(event)" ondragover="allowDrop(event)" onclick="selectImage(this)" data-pos="2,0"></div>
+        <div class="cell" ondrop="drop(event)" ondragover="allowDrop(event)" onclick="selectImage(this)" data-pos="2,1"></div>
+        <div class="cell" ondrop="drop(event)" ondragover="allowDrop(event)" onclick="selectImage(this)" data-pos="2,2"></div>
+    </div>
+
+    <div class="buttons">
+        <button class="rare" onclick="showCategory('rare')">Rare</button>
+        <button class="gold" onclick="showCategory('gold')">Gold</button>
+        <button class="epic" onclick="showCategory('epic')">Epic</button>
+        <button class="super" onclick="showCategory('super')">Super</button>
+    </div>
+
+    <input type="file" id="filePicker" accept="image/*" style="display: none;" onchange="loadImage(event)">
+
+    <script>
+        let selectedCell;
+        const loadedImages = {};
+        const imagePositions = {};
+
+        function selectImage(cell) {
+            selectedCell = cell;
+            document.getElementById('filePicker').click();
+        }
+
+        function loadImage(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const imgSrc = e.target.result;
+                    const imgName = file.name.replace(/\.png$/i, '');
+
+                    if (loadedImages[imgName]) {
+                        // If the image is already loaded, move it to the selected cell
+                        const img = document.querySelector(`img[src='${imgSrc}']`);
+                        if (img) {
+                            const oldCell = img.parentElement;
+                            oldCell.innerHTML = '';
+                            selectedCell.innerHTML = '';
+                            selectedCell.appendChild(img);
+                        }
+                    } else {
+                        // If the image is not loaded, load it into the selected cell
+                        const img = document.createElement('img');
+                        img.src = imgSrc;
+                        img.draggable = true;
+                        img.ondragstart = drag;
+                        selectedCell.innerHTML = '';
+                        selectedCell.appendChild(img);
+                        loadedImages[imgName] = imgSrc;
+                    }
+                    saveImagePosition(imgName, selectedCell.dataset.pos);
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function allowDrop(event) {
+            event.preventDefault();
+        }
+
+        function drag(event) {
+            event.dataTransfer.setData("text", event.target.src);
+        }
+
+        function drop(event) {
+            event.preventDefault();
+            const imgSrc = event.dataTransfer.getData("text");
+            const img = document.querySelector(`img[src='${imgSrc}']`);
+            const oldCell = img.parentElement;
+            oldCell.innerHTML = '';
+            event.target.innerHTML = '';
+            event.target.appendChild(img);
+
+            // Update positions in JSON
+            const imgName = Object.keys(loadedImages).find(key => loadedImages[key] === imgSrc);
+            saveImagePosition(imgName, event.target.dataset.pos);
+        }
+
+        function saveImagePosition(imageName, position) {
+            imagePositions[imageName] = position;
+            localStorage.setItem('imagePositions', JSON.stringify(imagePositions));
+            
+            // Save the image as PNG file
+            saveImageAsPNG(imageName, loadedImages[imageName]);
+        }
+
+        function loadSavedPositions() {
+            const savedPositions = JSON.parse(localStorage.getItem('imagePositions'));
+            if (savedPositions) {
+                for (const [imageName, position] of Object.entries(savedPositions)) {
+                    const [row, col] = position.split(',');
+                    const cell = document.querySelector(`.cell[data-pos="${row},${col}"]`);
+                    const img = document.createElement('img');
+                    img.src = loadedImages[imageName];
+                    img.draggable = true;
+                    img.ondragstart = drag;
+                    cell.innerHTML = '';
+                    cell.appendChild(img);
+                }
+            }
+        }
+
+        function saveImageAsPNG(imageName, imageDataURL) {
+            const link = document.createElement('a');
+            link.href = imageDataURL;
+            link.download = `${imageName}.png`;
+            link.click();
+        }
+
+        function loadLastImage() {
+            const savedPositions = JSON.parse(localStorage.getItem('imagePositions'));
+            if (savedPositions) {
+                const lastImageName = Object.keys(savedPositions).pop();
+                if (lastImageName) {
+                    const lastImageSrc = loadedImages[lastImageName];
+                    if (lastImageSrc) {
+                        const img = document.createElement('img');
+                        img.src = lastImageSrc;
+                        img.draggable = true;
+                        img.ondragstart = drag;
+                        const [row, col] = savedPositions[lastImageName].split(',');
+                        const cell = document.querySelector(`.cell[data-pos="${row},${col}"]`);
+                        cell.innerHTML = '';
+                        cell.appendChild(img);
+                    }
+                }
+            }
+        }
+
+        function showCategory(category) {
+            // Dummy function for category buttons
+            alert(`Showing ${category} category`);
+        }
+
+        window.onload = function() {
+            loadSavedPositions();
+            loadLastImage();
+        };
+    </script>
+</body>
+</html>
